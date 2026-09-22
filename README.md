@@ -32,6 +32,7 @@ Profile lookup order: `--profile`, then `<video>/profile.json`, then the parent 
 1. Fix the camera in place so the LCD fills a large part of the frame.
 2. **ROI:** drag on an empty area to add a digit box, drag inside a box to move it, drag its bottom-right corner to resize it. Select a box and press Delete to remove it. Boxes are ordered left to right automatically.
 3. Check the dots: green = segment on, gray = off, orange = segment disagrees with the matched digit. If the digits are italic, adjust `shear` so the dots sit on the segments.
+   Draw each box snug around its digit and centered on it: a box a few px off to one side is right at the edge of what the decoder tolerates, and any tracking error then turns the digit into ERR.
 4. Set `decimals` to the number of digits after the fixed decimal point (DYNO-200: 1). `Binarized view` shows the thresholding result.
 5. Save the profile JSON.
 6. Enter the subject, hand and memo, then **Start session**. Trials are split automatically:
@@ -39,8 +40,9 @@ Profile lookup order: `--profile`, then `<video>/profile.json`, then the parent 
    - It ends after 1.5 s below that value or blank.
    - `Peak-hold device`: if the displayed value stays unchanged for 1.5 s, that value is taken as the final one.
    - Manual start/stop is also available. `Delete` removes the selected trial (or the last one if none is selected), for retries.
-7. **Box follow:** the area around the boxes (bezel, label, window edges) is stored in the profile as an anchor. Each frame the boxes are moved/scaled to where it is found, so a moved camera or device is followed. Lost → full-frame search every ~0.5 s; boxes hold their last place meanwhile. Redrawing boxes retakes the anchor.
+7. **Box follow:** the area around the boxes (bezel, label, window edges) is stored in the profile as an anchor. Each frame the boxes are moved/scaled to where it is found, so a moved camera or device is followed. Lost → full-frame search every ~0.5 s; boxes hold their last place meanwhile. Redrawing boxes retakes the anchor, so redraw after moving the camera to a new place. The anchor covers only the LCD window and the casing right around it: a wider area pulls in the mount / bracket, which moves relative to the display.
 8. Selecting a row in the table shows that trial's curve. Deselect it to go back to the live view.
+9. Diagnosis: run with `GRIP_DUMP=<dir>` to save every raw frame that decoded as ERR as JPEG.
 
 ### Session folder `sessions/YYYYmmdd-HHMMSS/`
 | File | Contents |

@@ -30,13 +30,15 @@ pub struct Anchor {
 }
 
 impl Anchor {
-    /// Snapshot around `rois`: their bounding box grown 40% sideways, 60% up/down.
+    /// Snapshot around `rois`: their bounding box grown 15% sideways, 25% up/down — the LCD
+    /// window and the casing right around it. Wider pulls in the mount / bracket, which moves
+    /// relative to the display and drags the boxes to a wrong (scaled) pose.
     pub fn capture(img: &Gray, rois: &[Roi], rotate: u16) -> Option<Self> {
         let x0 = rois.iter().map(|r| r.x).min()?;
         let y0 = rois.iter().map(|r| r.y).min()?;
         let x1 = rois.iter().map(|r| r.x + r.w).max()?;
         let y1 = rois.iter().map(|r| r.y + r.h).max()?;
-        let (gw, gh) = ((x1 - x0) * 2 / 5, (y1 - y0) * 3 / 5);
+        let (gw, gh) = ((x1 - x0) * 3 / 20, (y1 - y0) / 4);
         let c = CELL as i32;
         let x = ((x0 - gw).max(0) / c) * c;
         let y = ((y0 - gh).max(0) / c) * c;
@@ -116,10 +118,11 @@ impl Tracker {
         let (lvl, lc, lr) = downsample(img, CELL);
         // poses are whole cells: dx, dy multiples of CELL
         let c = CELL as i32;
-        let (ox, oy) = ((self.anchor.x + self.pose.dx as i32) / c, (self.anchor.y + self.pose.dy as i32) / c);
-        let pose_of = |ox: i32, oy: i32, s: f32| Pose { dx: (ox * c - self.anchor.x) as f32, dy: (oy * c - self.anchor.y) as f32, s };
+        let cell = |a: i32, d: f32| ((a as f32 + d) / c as f32).round() as i32;
+        let (ox, oy) = (cell(self.anchor.x, self.pose.dx), cell(self.anchor.y, self.pose.dy));
+        let pose_of = |ox: i32, oy: i32, s: f32| (ox, oy, s);
         let current = ncc(&lvl, lc, lr, &place(&self.fine, self.pose.s), ox, oy);
-        let (mut best, mut bp) = (current, self.pose);
+        let (mut best, mut bp) = (current, (ox, oy, self.pose.s));
         for s in [self.pose.s - LOCAL_SCALE, self.pose.s, self.pose.s + LOCAL_SCALE] {
             let t = place(&self.fine, s);
             for di in -LOCAL..=LOCAL {
@@ -147,7 +150,8 @@ impl Tracker {
                 }
             }
             // refine at fine level around the coarse hit
-            for s in [gp.2 - 0.025, gp.2, gp.2 + 0.025] {
+            // coarse scales are 0.05 apart: refine across the whole gap, finely
+            for s in (-4..=4).map(|k| gp.2 + k as f32 * 0.0125) {
                 let t = place(&self.fine, s);
                 for di in -4..=4 {
                     for dj in -4..=4 {
@@ -161,7 +165,18 @@ impl Tracker {
         }
         self.score = best;
         if best >= MIN_SCORE {
-            self.pose = bp;
+            // sub-cell: parabola through the NCC at the neighbouring cells. A whole-cell pose is
+            // up to 2 px off, which a segment patch on a small digit can't afford.
+            let (bx, by, s) = bp;
+            let t = place(&self.fine, s);
+            let sub = |l: f32, r: f32| {
+                let k = l - 2.0 * best + r;
+                if k < -1e-6 { (0.5 * (l - r) / k).clamp(-0.5, 0.5) } else { 0.0 }
+            };
+            let n = |dx: i32, dy: i32| ncc(&lvl, lc, lr, &t, bx + dx, by + dy);
+            let (fx, fy) = (sub(n(-1, 0), n(1, 0)), sub(n(0, -1), n(0, 1)));
+            let cf = c as f32;
+            self.pose = Pose { dx: (bx as f32 + fx) * cf - self.anchor.x as f32, dy: (by as f32 + fy) * cf - self.anchor.y as f32, s };
         }
         self.rois()
     }

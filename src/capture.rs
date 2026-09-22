@@ -195,6 +195,13 @@ impl Worker {
         let track = self.follow(&img, &mut p);
         let reading = decode(&img, &p);
         let decode_ms = t0.elapsed().as_secs_f32() * 1000.0;
+        // GRIP_DUMP=<dir>: keep raw frames that decoded as ERR, for offline diagnosis
+        if reading.status == grip_ocr::decoder::Status::Err
+            && let (Some(dir), Some(j)) = (std::env::var_os("GRIP_DUMP"), jpeg)
+        {
+            let _ = std::fs::create_dir_all(&dir);
+            let _ = std::fs::write(PathBuf::from(dir).join(format!("{:06}.jpg", self.seq)), j);
+        }
         let stable = self.stab.push(&reading, p.stable_frames);
         let _ = self.tx.send(FrameMsg { t, reading: reading.clone(), stable, decode_ms });
         self.seq += 1;

@@ -12,7 +12,7 @@ fn frame(name: &str) -> (Vec<u8>, usize, usize) {
 
 fn profile() -> Profile {
     Profile {
-        rois: [(196, 741, 60, 155), (274, 748, 60, 158), (354, 761, 80, 162), (441, 776, 86, 170)]
+        rois: [(196, 741, 60, 155), (274, 748, 60, 158), (348, 761, 80, 162), (441, 776, 86, 170)]
             .map(|(x, y, w, h)| Roi { x, y, w, h })
             .to_vec(),
         decimals: 2,
